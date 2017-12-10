@@ -3,6 +3,8 @@ var timestamp = null;
 var lastMouseX = null;
 var lastMouseY = null;
 
+var hooks = [];
+
 var events = [];
 
 var log = function(e) {
@@ -38,6 +40,14 @@ var log = function(e) {
     };
 
     socket.emit('userEvent', interaction);
+
+    for (var idx = 0; idx < hooks.length; idx++) {
+        hooks[idx](interaction);
+    }
+};
+
+var attachInteractionHook = function(hook) {
+    hooks.push(hook);
 };
 
 for(var i in window) {
