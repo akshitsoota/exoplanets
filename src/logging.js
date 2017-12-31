@@ -1,13 +1,14 @@
 (function() {
-    var THIS_FILE_NAME = "firebase-logging.js";
+    var THIS_FILE_NAME = "logging.js";
 
-    var THIS_SOURCE_ELEMENT = document.getElementById("firebaselogging");
+    var THIS_SOURCE_ELEMENT = document.getElementById("logging");
     if (THIS_SOURCE_ELEMENT == null) {
         THIS_SOURCE_ELEMENT = huntSourceElement();
     }
 
     var REQUIRED_KEYS = ["apiKey", "authDomain", "databaseURL", "projectId", "storageBucket", "messagingSenderId"];
     var SRC_URL = THIS_SOURCE_ELEMENT.src;
+    var HAS_ALL_KEYS = true;
 
     var firebaseConfig= {};
     for (var idx = 0; idx < REQUIRED_KEYS.length; idx++) {
@@ -21,15 +22,19 @@
         key = key.toLowerCase();
         value = getParameterByName(key, SRC_URL);
         if (value == null) {
-            throw "A required key was not sent in as the query parameter to this script; " + key;
+            HAS_ALL_KEYS = false;
         }
 
         firebaseConfig[key] = value;
     }
 
-    firebase.initializeApp(firebaseConfig);
+    var database = null;
 
-    var database = firebase.database();
+    // Initialize Firebase if we got all the necessary Firebase Config parameters
+    if (HAS_ALL_KEYS) {
+        firebase.initializeApp(firebaseConfig);
+        database = firebase.database();
+    }
 
     ////////////////////////////
     // Hook Code
@@ -90,10 +95,27 @@
                 }
             }
 
+            function _throwIfFirebaseAppNotInitialized() {
+                if (!firebase) {
+                    throw "The Firebase Library/Framework was not included"
+                }
+
+                try {
+                    if (firebase) {
+                        firebase.app();
+                    }
+                } catch (exception) {
+                    if (exception && exception.code && exception.code === "app/no-app") {
+                        throw "The Firebase Library/Framework was not initialized with a configuration";
+                    }
+                }
+            }
+
             return {
                 ci: _cleanInteraction,
                 ivi: _isValidInteraction,
-                tiinv: _throwIfInteractionNotValid
+                tiinv: _throwIfInteractionNotValid,
+                tifani: _throwIfFirebaseAppNotInitialized
             };
         })();
 
@@ -220,6 +242,7 @@
             var HOOK_NAME = "GenericFirebaseHook";
 
             if (!shouldLog) shouldLog = false;
+            HookInteractionPreconditions.tifani();
 
             return function(interaction) {
                 if (!HookInteractionPreconditions.ivi(interaction)) {
@@ -249,6 +272,7 @@
             var DEFAULT_DURATION = 1000; // ms
             if (!duration) duration = DEFAULT_DURATION;
             if (!shouldLog) shouldLog = false;
+            HookInteractionPreconditions.tifani();
 
             var COLLECTION_BIN = [];
 
@@ -315,6 +339,7 @@
             var DEFAULT_COLLECTION_LIMIT = 100;
             if (!collectionLimit) collectionLimit = DEFAULT_COLLECTION_LIMIT;
             if (!shouldLog) shouldLog = false;
+            HookInteractionPreconditions.tifani();
 
             var TRANSFORMATION = FirebaseCollectToLimitTransformations.ap(collectionLimit, shouldLog);
             if (TRANSFORMATION != null) {
