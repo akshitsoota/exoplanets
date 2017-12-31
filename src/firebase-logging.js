@@ -153,6 +153,18 @@
                     .child(_generateChildPathForInteraction(interaction));
             }
 
+            function _generateInteractionForSingleInteractionAJAXCall(interaction) {
+                HookInteractionPreconditions.tiinv(interaction);
+
+                return {
+                    "time-of-submission": new Date().getTime(),
+                    "sessionID": interaction.sessionID,
+                    "events": [
+                        interaction
+                    ]
+                };
+            }
+
             ////////////////////////////
             // Multiple Interactions
             ////////////////////////////
@@ -171,15 +183,25 @@
                 return updates;
             }
 
+            function _generateInteractionForMultipleInteractionsAJAXCall(interactions) {
+                return {
+                    "time-of-submission": new Date().getTime(),
+                    "sessionID": window.getSessionID(),
+                    "events": interactions
+                };
+            }
+
             ////////////////////////////
             // Function Wrap Up
             ////////////////////////////
             return {
                 giuv: _generateInteractionUpdateValue,
                 gfdbr: _generateFirebaseDBReference,
+                gifajax: _generateInteractionForSingleInteractionAJAXCall,
                 mi: {
                     gfdbr: _generateFirebaseDBReferenceForMultipleInteractions,
-                    guo: _generateUpdateObjectForMultipleInteractions
+                    guo: _generateUpdateObjectForMultipleInteractions,
+                    gifajax: _generateInteractionForMultipleInteractionsAJAXCall,
                 }
             }
         })();
@@ -190,11 +212,11 @@
 
         var hooks = {};
 
-        ////////////////////////////
-        // Generic Hook Code
-        // (GenericFirebaseHook)
-        ////////////////////////////
-        var GenericFirebaseHook = function(shouldLog) {
+        ////////////////////////////////////////////////////////
+        // Firebase: Generic Hook Code
+        // (FirebaseGenericHook)
+        ////////////////////////////////////////////////////////
+        var FirebaseGenericHook = function(shouldLog) {
             var HOOK_NAME = "GenericFirebaseHook";
 
             if (!shouldLog) shouldLog = false;
@@ -215,13 +237,13 @@
             };
         };
 
-        hooks["GenericFirebaseHook"] = GenericFirebaseHook;
+        hooks["FirebaseGenericHook"] = FirebaseGenericHook;
 
-        ////////////////////////////
-        // Batch Collect At Interval
-        // (BatchCollectAtInterval)
-        ////////////////////////////
-        var BatchCollectAtInterval = function(duration, shouldLog) {
+        ////////////////////////////////////////////////////////
+        // Firebase: Batch Collect At Interval
+        // (FirebaseBatchCollectAtInterval)
+        ////////////////////////////////////////////////////////
+        var FirebaseBatchCollectAtInterval = function(duration, shouldLog) {
             var HOOK_NAME = "BatchCollectAtInterval";
 
             var DEFAULT_DURATION = 1000; // ms
@@ -267,13 +289,13 @@
             return strategy;
         };
 
-        hooks["BatchCollectAtInterval"] = BatchCollectAtInterval;
+        hooks["FirebaseBatchCollectAtInterval"] = FirebaseBatchCollectAtInterval;
 
-        ////////////////////////////
-        // Collect Up Till A Limit
-        // (CollectToLimit)
-        ////////////////////////////
-        var CollectToLimitTransformations = (function() {
+        ////////////////////////////////////////////////////////
+        // Firebase: Collect Up Till A Limit
+        // (FirebaseCollectToLimit)
+        ////////////////////////////////////////////////////////
+        var FirebaseCollectToLimitTransformations = (function() {
             function _attemptProduction(collectionLimit, shouldLog) {
                 if (collectionLimit == 1) {
                     return GenericFirebaseHook(shouldLog);
@@ -287,14 +309,14 @@
             };
         })();
 
-        var CollectToLimit = function(collectionLimit, shouldLog) {
+        var FirebaseCollectToLimit = function(collectionLimit, shouldLog) {
             var HOOK_NAME = "CollectToLimit";
 
             var DEFAULT_COLLECTION_LIMIT = 100;
             if (!collectionLimit) collectionLimit = DEFAULT_COLLECTION_LIMIT;
             if (!shouldLog) shouldLog = false;
 
-            var TRANSFORMATION = CollectToLimitTransformations.ap(collectionLimit, shouldLog);
+            var TRANSFORMATION = FirebaseCollectToLimitTransformations.ap(collectionLimit, shouldLog);
             if (TRANSFORMATION != null) {
                 return TRANSFORMATION;
             }
@@ -359,7 +381,197 @@
             return strategy;
         };
 
-        hooks["CollectToLimit"] = CollectToLimit;
+        hooks["FirebaseCollectToLimit"] = FirebaseCollectToLimit;
+
+        ////////////////////////////////////////////////////////
+        // AJAX Submission: Generic Hook Code
+        // (GenericAJAXSubmissionHook)
+        ////////////////////////////////////////////////////////
+        var GenericAJAXSubmissionHook = function(shouldLog) {
+            var HOOK_NAME = "GenericAJAXSubmissionHook";
+
+            if (!shouldLog) shouldLog = false;
+
+            return function(interaction) {
+                if (!HookInteractionPreconditions.ivi(interaction)) {
+                    return;
+                }
+
+                if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "Submitting an interaction");
+
+                return $.ajax({
+                    url: "/log-event",
+                    type: "POST",
+                    data: JSON.stringify(HookFactory.gifajax(interaction)),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json"
+                }).done(function() {
+                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "Submitted interaction via AJAX");
+                }).fail(function(err) {
+                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "AJAX Submission of the interaction failed");
+                });
+            };
+        };
+
+        hooks["GenericAJAXSubmissionHook"] = GenericAJAXSubmissionHook;
+
+        ////////////////////////////////////////////////////////
+        // AJAX Submission: Batch Collect At Interval
+        // (AJAXBatchCollectAtInterval)
+        ////////////////////////////////////////////////////////
+        var AJAXBatchCollectAtInterval = function(duration, shouldLog) {
+            var HOOK_NAME = "AJAXBatchCollectAtInterval";
+
+            var DEFAULT_DURATION = 1000; // ms
+            if (!duration) duration = DEFAULT_DURATION;
+            if (!shouldLog) shouldLog = false;
+
+            var COLLECTION_BIN = [];
+
+            var strategy = function(interaction) {
+                if (!HookInteractionPreconditions.ivi(interaction)) {
+                    return;
+                }
+
+                // Stash into the collection bin for future collection
+                COLLECTION_BIN.push(interaction);
+
+                if (shouldLog)
+                    HookLogger.mi.l(COLLECTION_BIN, HOOK_NAME, "Added one interaction to the collection bin; " + COLLECTION_BIN.length + " remain to be submitted");
+            };
+
+            window.setInterval(function () {
+                // Keeping a capture for race condition? I know JS is Single Threaded on browser side but this is all async :/
+                var collectionBinCapture = COLLECTION_BIN;
+
+                if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Batch submitting " + collectionBinCapture.length + " interaction(s)");
+
+                if (collectionBinCapture.length === 0) {
+                    if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "No intentions to submit zero logs!");
+                    return;
+                }
+
+                $.ajax({
+                    url: "/log-event",
+                    type: "POST",
+                    data: JSON.stringify(HookFactory.mi.gifajax(collectionBinCapture)),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json"
+                }).done(function() {
+                    if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Submitted " + collectionBinCapture.length + " interaction(s) via AJAX");
+
+                    COLLECTION_BIN = COLLECTION_BIN.splice(collectionBinCapture.length);
+
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs exist to be picked up in the next batch");
+                }).fail(function(err) {
+                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "AJAX Submission of the interactions failed");
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs are yet to be picked up");
+                });
+            }, duration);
+
+            return strategy;
+        };
+
+        hooks["AJAXBatchCollectAtInterval"] = AJAXBatchCollectAtInterval;
+
+        ////////////////////////////////////////////////////////
+        // AJAX Submission: Collect Up Till A Limit
+        // (AJAXCollectToLimit)
+        ////////////////////////////////////////////////////////
+        var AJAXCollectToLimitTransformations = (function() {
+            function _attemptProduction(collectionLimit, shouldLog) {
+                if (collectionLimit == 1) {
+                    return GenericFirebaseHook(shouldLog);
+                }
+
+                return undefined;
+            }
+
+            return {
+                ap: _attemptProduction
+            };
+        })();
+
+        var AJAXCollectToLimit = function(collectionLimit, shouldLog) {
+            var HOOK_NAME = "CollectToLimit";
+
+            var DEFAULT_COLLECTION_LIMIT = 100;
+            if (!collectionLimit) collectionLimit = DEFAULT_COLLECTION_LIMIT;
+            if (!shouldLog) shouldLog = false;
+
+            var TRANSFORMATION = AJAXCollectToLimitTransformations.ap(collectionLimit, shouldLog);
+            if (TRANSFORMATION != null) {
+                return TRANSFORMATION;
+            }
+
+            var COLLECTION_BIN = [];
+
+            var strategy = function(interaction) {
+                if (!HookInteractionPreconditions.ivi(interaction)) {
+                    return;
+                }
+
+                // Stash into the collection bin for future collection
+                COLLECTION_BIN.push(interaction);
+
+                if (shouldLog)
+                    HookLogger.mi.l(COLLECTION_BIN, HOOK_NAME, "Added one interaction to the collection bin; " + COLLECTION_BIN.length + " are stored to be submitted; Threshold = " + collectionLimit);
+
+                // Determine if the logs should be submitted for Firebase
+                if (_readyForFirebaseSubmission()) {
+                    _submitToFirebase();
+                }
+            };
+
+            function _readyForFirebaseSubmission() {
+                return COLLECTION_BIN.length >= collectionLimit;
+            }
+
+            var IS_FIREBASE_SUBMISSION_IN_PROGRESS = false;
+
+            function _submitToFirebase() {
+                if (IS_FIREBASE_SUBMISSION_IN_PROGRESS) {
+                    if (shouldLog)
+                        HookLogger.mi.l(COLLECTION_BIN, HOOK_NAME, "Attempted to submit " + COLLECTION_BIN.length + " are stored to be submitted but a submission is taking place in the background");
+
+                    // Don't want to unnecessarily send Firebase duplicated information
+                    return;
+                }
+
+                // Keeping a capture for race condition? I know JS is Single Threaded on browser side but this is all async :/
+                // In case of an error, because we haven't cleared out, we still have old logs to submit
+                var collectionBinCapture = COLLECTION_BIN;
+
+                if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Batch submitting " + collectionBinCapture.length + " interaction(s) because limit was hit");
+
+                IS_FIREBASE_SUBMISSION_IN_PROGRESS = true;
+
+                $.ajax({
+                    url: "/log-event",
+                    type: "POST",
+                    data: JSON.stringify(HookFactory.mi.gifajax(collectionBinCapture)),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json"
+                }).done(function() {
+                    if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Submitted " + collectionBinCapture.length + " interaction(s) via AJAX");
+
+                    COLLECTION_BIN = COLLECTION_BIN.splice(collectionBinCapture.length);
+
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs exist to be picked up in the next batch");
+
+                    IS_FIREBASE_SUBMISSION_IN_PROGRESS = false;
+                }).fail(function(err) {
+                    IS_FIREBASE_SUBMISSION_IN_PROGRESS = false;
+
+                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "AJAX Submission of the interactions failed");
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs are yet to be picked up");
+                });
+            }
+
+            return strategy;
+        };
+
+        hooks["AJAXCollectToLimit"] = AJAXCollectToLimit;
 
         ////////////////////////////
         // Function Wrap Up
@@ -368,7 +580,7 @@
         return hooks;
     })();
 
-    attachInteractionHook(HookStrategies.CollectToLimit(100, true));
+    attachInteractionHook(HookStrategies.AJAXCollectToLimit(100, true));
 
     ///////////////////////////////
     // Generic Utility Functions
