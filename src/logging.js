@@ -182,7 +182,7 @@
                     "time-of-submission": new Date().getTime(),
                     "sessionID": interaction.sessionID,
                     "events": [
-                        interaction
+                        HookInteractionPreconditions.ci(interaction)
                     ]
                 };
             }
@@ -206,10 +206,14 @@
             }
 
             function _generateInteractionForMultipleInteractionsAJAXCall(interactions) {
+                var mappedInteractions = _(interactions).map(function(interaction) {
+                    return HookInteractionPreconditions.ci(interaction);
+                }).value();
+
                 return {
                     "time-of-submission": new Date().getTime(),
                     "sessionID": window.getSessionID(),
-                    "events": interactions
+                    "events": mappedInteractions
                 };
             }
 
