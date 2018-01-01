@@ -25,7 +25,10 @@ app.post("/log-event", function(request, response) {
     var sessionID = jsonBody["sessionID"];
     var events = jsonBody["events"];
 
-    jsonfile.writeFile("events/events-" + sessionID + "-" + time_of_submission + ".json", events);
+    jsonfile.writeFile("events/events-" + sessionID + "-" + time_of_submission + ".json", {
+        "count": events.length,
+        "events": events
+    });
 
     response.send({
         "success": true
