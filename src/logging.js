@@ -64,6 +64,12 @@
                 });
             }
 
+            function _stringifyValues(wrapperInteraction) {
+                return wrapperInteraction.mapValues(function (value) {
+                    return value.toString();
+                });
+            }
+
             function _unwrapInteraction(wrappedInteraction) {
                 return wrappedInteraction.value();
             }
@@ -72,6 +78,15 @@
                 interaction = _wrapInteraction(interaction);
                 interaction = _filterUndefinedValues(interaction);
                 interaction = _mapInfinityOut(interaction);
+                interaction = _unwrapInteraction(interaction);
+
+                return interaction;
+            }
+
+            function _cleanInteractionForAJAX(interaction) {
+                interaction = _cleanInteraction(interaction);
+                interaction = _wrapInteraction(interaction);
+                interaction = _stringifyValues(interaction);
                 interaction = _unwrapInteraction(interaction);
 
                 return interaction;
@@ -113,6 +128,7 @@
 
             return {
                 ci: _cleanInteraction,
+                cifa: _cleanInteractionForAJAX,
                 ivi: _isValidInteraction,
                 tiinv: _throwIfInteractionNotValid,
                 tifani: _throwIfFirebaseAppNotInitialized
@@ -182,7 +198,7 @@
                     "time-of-submission": new Date().getTime(),
                     "sessionID": interaction.sessionID,
                     "events": [
-                        HookInteractionPreconditions.ci(interaction)
+                        HookInteractionPreconditions.cifa(interaction)
                     ]
                 };
             }
@@ -207,7 +223,7 @@
 
             function _generateInteractionForMultipleInteractionsAJAXCall(interactions) {
                 var mappedInteractions = _(interactions).map(function(interaction) {
-                    return HookInteractionPreconditions.ci(interaction);
+                    return HookInteractionPreconditions.cifa(interaction);
                 }).value();
 
                 return {

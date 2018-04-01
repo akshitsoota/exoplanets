@@ -43,21 +43,21 @@ var socket = io.listen(server);
 
 var sessions = 0;
 socket.on('connection', function(socket) {
-    console.log("Starting data collection: ");
+    // console.log("Starting data collection: ");
     var all_data = [];
 
     socket.on('userEvent', function(data) {
-        console.log(data);
+        // console.log(data);
         all_data.push(data);
     });
 
     socket.on('disconnect', function(socket) {
-        console.log("Interaction session ended. Attempting to push to database.");
+        // console.log("Interaction session ended. Attempting to push to database.");
         sessions++;
-        console.log(all_data);
+        // console.log(all_data);
         
         jsonfile.writeFile('interaction-data.json', all_data, function(err) {
-            console.error(err);
+            // console.error(err);
         });
     });
 });
