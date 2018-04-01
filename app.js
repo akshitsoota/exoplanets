@@ -3,7 +3,8 @@ var express = require('express'),
     http = require('http'),
     port = process.argv[2] || 8000,
     io = require('socket.io'),
-    jsonfile = require('jsonfile');
+    jsonfile = require('jsonfile'),
+    request = require("request-promise");
 
 var app = express();
 var server = http.createServer(app);
@@ -33,6 +34,54 @@ app.post("/log-event", function(request, response) {
     response.send({
         "success": true
     });
+});
+
+app.post("/log-es-event", function(req, response) {
+    var jsonBody = req.body;
+    var sessionID = jsonBody["sessionID"];
+    var events = jsonBody["events"];
+
+    function generateNextPromise(nextIndex, offset) {
+        if (nextIndex === events.length) {
+            return new Promise(function(resolve) {
+                response.send({
+                    "success": true
+                });
+                resolve();
+            });
+        }
+
+        offset = offset || 0;
+
+        var options = {
+            "method": "PUT",
+            "url": "http://localhost:9200/events/" + sessionID + "/" + nextIndex,
+            "body": events[nextIndex],
+            "json": true
+        };
+
+        return request(options)
+            .then(function(body) {
+                return generateNextPromise(nextIndex + 1, offset);
+            })
+            .catch(function(error) {
+                response.status(500).send({
+                    "success": false,
+                    "error": error.toString()
+                });
+            });
+    }
+
+    request("http://localhost:9200/events/_search?q=" + sessionID)
+        .then(function(resp) {
+            return generateNextPromise(0, JSON.parse(resp)["hits"]["total"]);
+        })
+        .catch(function(error) {
+            response.status(500).send({
+                "success": false,
+                "error": error.toString()
+            });
+        });
 });
 
 server.listen(port, function (err) {

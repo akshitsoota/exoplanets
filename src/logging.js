@@ -243,7 +243,7 @@
                 mi: {
                     gfdbr: _generateFirebaseDBReferenceForMultipleInteractions,
                     guo: _generateUpdateObjectForMultipleInteractions,
-                    gifajax: _generateInteractionForMultipleInteractionsAJAXCall,
+                    gifajax: _generateInteractionForMultipleInteractionsAJAXCall
                 }
             }
         })();
@@ -509,7 +509,7 @@
 
                     if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs exist to be picked up in the next batch");
                 }).fail(function(err) {
-                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "AJAX Submission of the interactions failed");
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, "AJAX Submission of the interactions failed");
                     if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs are yet to be picked up");
                 });
             }, duration);
@@ -525,8 +525,8 @@
         ////////////////////////////////////////////////////////
         var AJAXCollectToLimitTransformations = (function() {
             function _attemptProduction(collectionLimit, shouldLog) {
-                if (collectionLimit == 1) {
-                    return GenericFirebaseHook(shouldLog);
+                if (collectionLimit === 1) {
+                    return FirebaseGenericHook(shouldLog);
                 }
 
                 return undefined;
@@ -538,7 +538,7 @@
         })();
 
         var AJAXCollectToLimit = function(collectionLimit, shouldLog) {
-            var HOOK_NAME = "CollectToLimit";
+            var HOOK_NAME = "AJAXCollectToLimit";
 
             var DEFAULT_COLLECTION_LIMIT = 100;
             if (!collectionLimit) collectionLimit = DEFAULT_COLLECTION_LIMIT;
@@ -608,7 +608,7 @@
                 }).fail(function(err) {
                     IS_FIREBASE_SUBMISSION_IN_PROGRESS = false;
 
-                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "AJAX Submission of the interactions failed");
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, "AJAX Submission of the interactions failed");
                     if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs are yet to be picked up");
                 });
             }
@@ -618,6 +618,205 @@
 
         hooks["AJAXCollectToLimit"] = AJAXCollectToLimit;
 
+        ////////////////////////////////////////////////////////
+        // ElasticSearch Submission: Generic Hook Code
+        // (GenericElasticSubmissionHook)
+        ////////////////////////////////////////////////////////
+        var GenericElasticSubmissionHook = function(shouldLog) {
+            var HOOK_NAME = "GenericElasticSubmissionHook";
+
+            if (!shouldLog) shouldLog = false;
+
+            return function(interaction) {
+                if (!HookInteractionPreconditions.ivi(interaction)) {
+                    return;
+                }
+
+                if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "Submitting an interaction");
+
+                return $.ajax({
+                    url: "/log-es-event",
+                    type: "POST",
+                    data: JSON.stringify({
+                        "events": HookFactory.gifajax(interaction)["events"],
+                        "sessionID": window.getSessionID()
+                    }),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json"
+                }).done(function() {
+                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "Submitted interaction to ElasticSearch");
+                }).fail(function(err) {
+                    if (shouldLog) HookLogger.l(interaction, HOOK_NAME, "ElasticSearch Submission of the interaction failed");
+                });
+            };
+        };
+
+        hooks["GenericElasticSubmissionHook"] = GenericElasticSubmissionHook;
+
+        ////////////////////////////////////////////////////////
+        // ElasticSearch Submission: Batch Collect At Interval
+        // (ElasticBatchCollectAtInterval)
+        ////////////////////////////////////////////////////////
+        var ElasticBatchCollectAtInterval = function(duration, shouldLog) {
+            var HOOK_NAME = "ElasticBatchCollectAtInterval";
+
+            var DEFAULT_DURATION = 1000; // ms
+            if (!duration) duration = DEFAULT_DURATION;
+            if (!shouldLog) shouldLog = false;
+
+            var COLLECTION_BIN = [];
+
+            var strategy = function(interaction) {
+                if (!HookInteractionPreconditions.ivi(interaction)) {
+                    return;
+                }
+
+                // Stash into the collection bin for future collection
+                COLLECTION_BIN.push(interaction);
+
+                if (shouldLog)
+                    HookLogger.mi.l(COLLECTION_BIN, HOOK_NAME, "Added one interaction to the collection bin; " + COLLECTION_BIN.length + " remain to be submitted");
+            };
+
+            window.setInterval(function () {
+                // Keeping a capture for race condition? I know JS is Single Threaded on browser side but this is all async :/
+                var collectionBinCapture = COLLECTION_BIN;
+
+                if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Batch submitting " + collectionBinCapture.length + " interaction(s)");
+
+                if (collectionBinCapture.length === 0) {
+                    if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "No intentions to submit zero logs!");
+                    return;
+                }
+
+                $.ajax({
+                    url: "/log-es-event",
+                    type: "POST",
+                    data: JSON.stringify({
+                        "events": HookFactory.mi.gifajax(collectionBinCapture)["events"],
+                        "sessionID": window.getSessionID()
+                    }),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json"
+                }).done(function() {
+                    if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Submitted " + collectionBinCapture.length + " interaction(s) to ElasticSearch");
+
+                    COLLECTION_BIN = COLLECTION_BIN.splice(collectionBinCapture.length);
+
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs exist to be picked up in the next batch");
+                }).fail(function(err) {
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, "ElasticSearch Submission of the interactions failed");
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs are yet to be picked up");
+                });
+            }, duration);
+
+            return strategy;
+        };
+
+        hooks["ElasticBatchCollectAtInterval"] = ElasticBatchCollectAtInterval;
+
+        ////////////////////////////////////////////////////////
+        // ElasticSearch Submission: Collect Up Till A Limit
+        // (ElasticCollectToLimit)
+        ////////////////////////////////////////////////////////
+        var ElasticCollectToLimitTransformations = (function() {
+            function _attemptProduction(collectionLimit, shouldLog) {
+                if (collectionLimit === 1) {
+                    return FirebaseGenericHook(shouldLog);
+                }
+
+                return undefined;
+            }
+
+            return {
+                ap: _attemptProduction
+            };
+        })();
+
+        var ElasticCollectToLimit = function(collectionLimit, shouldLog) {
+            var HOOK_NAME = "ElasticCollectToLimit";
+
+            var DEFAULT_COLLECTION_LIMIT = 100;
+            if (!collectionLimit) collectionLimit = DEFAULT_COLLECTION_LIMIT;
+            if (!shouldLog) shouldLog = false;
+
+            var TRANSFORMATION = ElasticCollectToLimitTransformations.ap(collectionLimit, shouldLog);
+            if (TRANSFORMATION != null) {
+                return TRANSFORMATION;
+            }
+
+            var COLLECTION_BIN = [];
+
+            var strategy = function(interaction) {
+                if (!HookInteractionPreconditions.ivi(interaction)) {
+                    return;
+                }
+
+                // Stash into the collection bin for future collection
+                COLLECTION_BIN.push(interaction);
+
+                if (shouldLog)
+                    HookLogger.mi.l(COLLECTION_BIN, HOOK_NAME, "Added one interaction to the collection bin; " + COLLECTION_BIN.length + " are stored to be submitted; Threshold = " + collectionLimit);
+
+                // Determine if the logs should be submitted for Firebase
+                if (_readyForFirebaseSubmission()) {
+                    _submitToFirebase();
+                }
+            };
+
+            function _readyForFirebaseSubmission() {
+                return COLLECTION_BIN.length >= collectionLimit;
+            }
+
+            var IS_FIREBASE_SUBMISSION_IN_PROGRESS = false;
+
+            function _submitToFirebase() {
+                if (IS_FIREBASE_SUBMISSION_IN_PROGRESS) {
+                    if (shouldLog)
+                        HookLogger.mi.l(COLLECTION_BIN, HOOK_NAME, "Attempted to submit " + COLLECTION_BIN.length + " are stored to be submitted but a submission is taking place in the background");
+
+                    // Don't want to unnecessarily send Firebase duplicated information
+                    return;
+                }
+
+                // Keeping a capture for race condition? I know JS is Single Threaded on browser side but this is all async :/
+                // In case of an error, because we haven't cleared out, we still have old logs to submit
+                var collectionBinCapture = COLLECTION_BIN;
+
+                if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Batch submitting " + collectionBinCapture.length + " interaction(s) because limit was hit");
+
+                IS_FIREBASE_SUBMISSION_IN_PROGRESS = true;
+
+                $.ajax({
+                    url: "/log-es-event",
+                    type: "POST",
+                    data: JSON.stringify({
+                        "events": HookFactory.mi.gifajax(collectionBinCapture)["events"],
+                        "sessionID": window.getSessionID()
+                    }),
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json"
+                }).done(function() {
+                    if (shouldLog) HookLogger.mi.l(collectionBinCapture, HOOK_NAME, "Submitted " + collectionBinCapture.length + " interaction(s) to ElasticSearch");
+
+                    COLLECTION_BIN = COLLECTION_BIN.splice(collectionBinCapture.length);
+
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs exist to be picked up in the next batch");
+
+                    IS_FIREBASE_SUBMISSION_IN_PROGRESS = false;
+                }).fail(function(err) {
+                    IS_FIREBASE_SUBMISSION_IN_PROGRESS = false;
+
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, "ElasticSearch Submission of the interactions failed");
+                    if (shouldLog) HookLogger.mi.l(null, HOOK_NAME, COLLECTION_BIN.length + " logs are yet to be picked up");
+                });
+            }
+
+            return strategy;
+        };
+
+        hooks["ElasticCollectToLimit"] = ElasticCollectToLimit;
+
         ////////////////////////////
         // Function Wrap Up
         ////////////////////////////
@@ -625,7 +824,7 @@
         return hooks;
     })();
 
-    attachInteractionHook(HookStrategies.AJAXCollectToLimit(100, true));
+    attachInteractionHook(HookStrategies.ElasticCollectToLimit(100, true));
 
     ///////////////////////////////
     // Generic Utility Functions
