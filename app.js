@@ -12,7 +12,8 @@ var server = http.createServer(app);
 app.use(express.static(__dirname));
 app.use('/scripts', express.static(__dirname + '/node_modules'));
 
-app.use(bodyParser.json({limit: '50mb'}));
+app.use(bodyParser.json({limit: "100mb"}));
+
 app.post("/log-event", function(request, response) {
     // Request Body Format
     // {
@@ -55,7 +56,7 @@ app.post("/log-es-event", function(req, response) {
 
         var options = {
             "method": "PUT",
-            "url": "http://localhost:9200/events/" + sessionID + "/" + nextIndex,
+            "url": "http://localhost:9200/events/" + sessionID + "/" + (offset + nextIndex),
             "body": events[nextIndex],
             "json": true
         };
