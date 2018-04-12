@@ -24,7 +24,7 @@ var log = function(e) {
     
     timestamp = now; // update global
     
-    console.log(e.target.__data__);
+    // console.log(e.target.__data__);
     // construct interaction object
     var interaction = {
             "sessionID": socket.io.engine.id,

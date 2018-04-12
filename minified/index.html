@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>codementum.org - Exoplanets</title>
+
+<style>
+    @import url(http://fonts.googleapis.com/css?family=Istok+Web);
+    @import url(http://fonts.googleapis.com/css?family=Oswald);
+    @import url(http://codementum.org/lib/main.css);
+
+    #planet {
+        font-family: "Oswald", serif;
+    }
+
+</style>
+
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://code.jquery.com/jquery-1.7.2.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/konami.pack.js"></script>
+<script src="/lib/circular-json.js"></script>
+
+<h1>
+    <a href="http://codementum.org" id="codementumIcon"></a>
+    Exoplanets: an interactive version of XKCD 1071
+</h1>
+
+<p>An interactive version of <a href="http://xkcd.com/1071/">XKCD 1071: Exoplanets</a> using data from <a href="http://phl.upr.edu/projects/habitable-exoplanets-catalog/data/database">Planetary Habilitability Laboratory</a> (via <a href="http://twitter.com/ProfAbelMendez">@ProfAbelMendez</a>) and adapted code from <a href="http://mbostock.github.com/d3/ex/bubble.html"> the d3.js Bubble Chart example</a> (by <a href="http://twitter.com/mbostock">@mbostock</a>).</p>
+
+<p>Planets are drawn to scale using radius data. The dataset also includes attributes such as atmosphere type, which is included in the information area on the left.</p>
+
+<p><em>The dataset is large (about 1.1mb), so it may take a few seconds to load.</em></p>
+
+<p>All blue and light brown planets are smaller than Jupiter. Brown represents the planets larger than Jupiter, while red represents the largest of them all. For the color by distance option, the more blue a planet is, the further away it is from the nearest star.</p>
+
+<p>Code can be found on <a href="https://github.com/codementum/exoplanets"> github</a>, and I can be found at <a href="http://twitter.com/laneharrison">@laneharrison</a>.</p>
+
+<p>Special thanks to Drew Skau (<a href="http://twitter.com/SeeingStructure">@SeeingStructure</a>) for help with the design details.</p>
+
+<script src="http://codementum.org/lib/codementumIcon.js"></script>
+
+<script src="monitor-events.js"></script>
+<script src="/src/exoplanets.js"></script>
+
+<!-- Logging Code Begin -->
+<script src="logging.js"></script>
+<script>ElasticSearch.generic();</script>
+<!-- Logging Code End -->
+
+<script>
+    (function (){
+        "use strict";
+
+        var konami = new Konami();
+
+        konami.code = function() {
+            colorBlind();
+        };
+
+        konami.iphone.code = function() {
+            colorBlind();
+        };
+
+        konami.load()
+    }());
+
+    console.log('(after you\'re done, try the konami code: up, up, down, down, left, right, left, right, b, a, enter - refresh to start over)');
+</script>
+
+<footer>
+    <a href="../" rel="author">Lane Harrison</a>
+</footer>

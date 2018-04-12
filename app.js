@@ -85,6 +85,31 @@ app.post("/log-es-event", function(req, response) {
         });
 });
 
+function bulkSendElasticInteractions(data, callback) {
+    var events = "";
+    for (var idx = 0; idx < data["events"].length; idx++) {
+        events += '{ "index" : { "_type" : "_doc" } }\n';
+        events += JSON.stringify(data["events"][idx]) + "\n";
+    }
+
+    var options = {
+        "method": "POST",
+        "url": "http://localhost:9200/events/" + data["sessionID"] + "/_bulk",
+        "body": events,
+        "headers": {
+            "Content-Type": "application/json"
+        }
+    };
+
+    request(options)
+        .then(function() {
+            callback("Done!");
+        })
+        .catch(function(error) {
+            console.log(error);
+        })
+}
+
 server.listen(port, function (err) {
     if(!err) console.log('Listening on: ' + port);
 });
@@ -99,6 +124,10 @@ socket.on('connection', function(socket) {
     socket.on('userEvent', function(data) {
         // console.log(data);
         all_data.push(data);
+    });
+
+    socket.on("ElasticSearchUserEvent", function(data, callback) {
+        bulkSendElasticInteractions(data, callback);
     });
 
     socket.on('disconnect', function(socket) {
