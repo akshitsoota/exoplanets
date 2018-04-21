@@ -7,7 +7,7 @@ var ElasticSearch = (function() {
         });
     }
 
-    function atIntervals() { // duration) {
+    function atIntervals() {
         var worker = new window.Worker("worker-atintervals.js");
 
         attachInteractionHook(function(interaction) {
@@ -15,7 +15,7 @@ var ElasticSearch = (function() {
         });
     }
 
-    function tillLimit() { // limit) {
+    function tillLimit() {
         var worker = new window.Worker("worker-tilllimit.js");
 
         attachInteractionHook(function(interaction) {

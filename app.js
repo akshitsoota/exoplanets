@@ -4,7 +4,8 @@ var express = require('express'),
     port = process.argv[2] || 8000,
     io = require('socket.io'),
     jsonfile = require('jsonfile'),
-    request = require("request-promise");
+    request = require("request-promise"),
+    crypto = require("crypto");
 
 var app = express();
 var server = http.createServer(app);
@@ -92,6 +93,8 @@ function bulkSendElasticInteractions(data, callback) {
         events += JSON.stringify(data["events"][idx]) + "\n";
     }
 
+    var hashedSessionID = crypto.createHash('sha256').update(data["sessionID"]).digest("hex");
+
     var options = {
         "method": "POST",
         "url": "http://localhost:9200/events/" + data["sessionID"] + "/_bulk",
@@ -103,7 +106,9 @@ function bulkSendElasticInteractions(data, callback) {
 
     request(options)
         .then(function() {
-            callback("Done!");
+            if (callback) {
+                callback("Done!");
+            }
         })
         .catch(function(error) {
             console.log(error);
